@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ .Title }}</title>
+    <meta name="description" content="{{ .Description }}">
+    <style>
+        .item {
+            margin: 10px;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+        {{ if .DarkMode }}
+        body {
+            background-color: #333;
+            color: #fff;
+        }
+        {{ else }}
+        body {
+            background-color: #fff;
+            color: #333;
+        }
+        {{ end }}
+    </style>
+</head>
+<body>
+    <h1>{{ .Header }}</h1>
+    
+    {{ with .User }}
+    <div class="user-info">
+        <p>Welcome, {{ .Name }}!</p>
+        <p>Email: {{ .Email }}</p>
+        {{ if .IsAdmin }}
+        <p>Admin Dashboard: <a href="/admin">Access</a></p>
+        {{ end }}
+    </div>
+    {{ else }}
+    <div class="login-prompt">
+        <p>Please <a href="/login">log in</a> to continue.</p>
+    </div>
+    {{ end }}
+    
+    {{ if .ShowItems }}
+    <h2>Items</h2>
+    <div class="items-container">
+        {{ if .Items }}
+        <ul>
+            {{ range .Items }}
+            <li class="item">
+                <h3>{{ .Name }}</h3>
+                <p>Price: ${{ .Price }}</p>
+                <p>{{ .Description }}</p>
+                {{ if .InStock }}
+                <button>Add to Cart</button>
+                {{ else }}
+                <p>Out of Stock</p>
+                {{ end }}
+            </li>
+            {{ end }}
+        </ul>
+        {{ else }}
+        <p>No items available.</p>
+        {{ end }}
+    </div>
+    {{ end }}
+    
+    <footer>
+        <p>{{ .Footer }}</p>
+        <ul>
+            {{ range .FooterLinks }}
+            <li><a href="{{ .URL }}">{{ .Text }}</a></li>
+            {{ end }}
+        </ul>
+        <p>{{/* This is a comment that will be converted */}}</p>
+    </footer>
+</body>
+</html>

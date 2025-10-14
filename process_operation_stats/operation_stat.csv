@@ -1,0 +1,6 @@
+operation,count,p50,p90,p99,p999
+UpdateQuotaRequest,2026,10.0,14.678,21.544,68.129
+DeleteQuotaRequest,942,0.681,2.154,4.642,4.642
+CreateQuotaRequest,5913,14.678,21.544,215.443,1000.0
+CloseQuotaRequestWithIssue,318,0.681,1.468,1.468,2.154
+CancelQuotaRequest,2,10.0,10.0,10.0,10.0
