@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: resource-silo
-        image: cr.cloud-preprod.yandex.net/crtqchh33vmh7gjrr5uq/iam-k8s-training/spice-resource-silo:1.1
+        image: cr.cloud-preprod.yandex.net/crtqchh33vmh7gjrr5uq/iam-k8s-training/spice-resource-silo:1.3
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
