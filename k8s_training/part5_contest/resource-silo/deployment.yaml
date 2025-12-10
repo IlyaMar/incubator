@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resource-silo
+  labels:
+    app: resource-silo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: resource-silo
+  template:
+    metadata:
+      labels:
+        app: resource-silo
+    spec:
+      containers:
+      - name: resource-silo
+        image: cr.cloud-preprod.yandex.net/crtqchh33vmh7gjrr5uq/iam-k8s-training/spice-resource-silo:1.1
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          capabilities:
+            drop:
+              - all
+        resources:
+          limits:
+            cpu: "2"
+            memory: "128Mi"
+          requests:
+            cpu: "2"
+            memory: "124Mi"

@@ -1,0 +1,14 @@
+operation,count,p50,p90,p99,p999
+organizationmanager.v1.OsLoginService/CreateProfile,9,0.0075,0.75,0.75,0.75
+organizationmanager.v1.GroupService/CreateExternal,3751,0.25,0.5,1.0,5.0
+organizationmanager.v1.GroupService/Create,14867,0.25,0.5,1.0,2.5
+iam.v1.workload.oidc.FederationService/Create,123,0.5,0.75,2.5,2.5
+iam.v1.workload.FederatedCredentialService/Create,103,0.75,1.0,2.5,2.5
+iam.v1.awscompatibility.AccessKeyService/Create,53016,2.5,2.5,2.5,10.0
+iam.v1.SubjectService/BulkCreateOrUpdate,12012,0.25,0.25,0.5,1.0
+iam.v1.SubjectContainerService/Create,13297,0.25,0.25,0.5,1.0
+iam.v1.ServiceAccountService/Create,608625,0.005,0.5,2.5,2.5
+iam.v1.OAuthClientService/Create,4192,0.25,0.5,0.75,2.5
+iam.v1.OAuthClientSecretService/Create,4344,0.25,0.5,1.0,2.5
+iam.v1.KeyService/Create,106557,0.025,2.5,2.5,5.0
+iam.v1.ApiKeyService/Create,12159,2.5,2.5,2.5,5.0

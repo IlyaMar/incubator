@@ -19,23 +19,27 @@ func main() {
 	// Define the HTTP handler for incrementing counters
 	http.HandleFunc("/deliver", func(w http.ResponseWriter, r *http.Request) {
 		// Only allow POST method
-		if r.Method != http.MethodPost {
+		if r.Method != http.MethodPut {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
 		// Get clan_name from URL query parameter
-		clanName := r.URL.Query().Get("clan_name")
+		clanName := r.URL.Query().Get("clan")
 		if clanName == "" {
-			http.Error(w, "Missing clan_name parameter", http.StatusBadRequest)
+			http.Error(w, "Missing clan parameter", http.StatusBadRequest)
 			return
 		}
 
-		counter := counters[clanName]
+		counter, found := counters[clanName]
+		if !found {
+			http.Error(w, "Unexisting clan name. atreides, harkonien, corrino, freeman, space_guild", http.StatusBadRequest)
+			return
+		}
 		atomic.AddInt64(counter, 1)
 
 		// Return the new counter value
-		fmt.Fprintf(w, "Clan %s counter: %d\n", clanName, *counter)
+		//fmt.Fprintf(w, "Clan %s counter: %d\n", clanName, *counter)
 	})
 
 	go func() {

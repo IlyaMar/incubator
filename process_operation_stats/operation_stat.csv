@@ -1,3 +1,0 @@
-operation,count,p50,p90,p99,p999
-organizationmanager.v1.idp.PasswordAuthService/ChangeOneTimePassword,73,0.5,0.75,0.75,0.75
-organizationmanager.v1.idp.PasswordAuthService/AuthenticateByPassword,199,0.5,1.0,2.5,2.5
