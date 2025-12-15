@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: harvester-atreides-1
+  labels:
+    app: harvester-atreides-1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: harvester-atreides-1
+  template:
+    metadata:
+      labels:
+        app: harvester-atreides-1
+        team: atreides
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+
+      containers:
+      - name: python-container
+        image: cr.cloud-preprod.yandex.net/crtqchh33vmh7gjrr5uq/iam-jammy-python:3-user1000
+        command: ["/usr/bin/python3"]
+        args: ["-u", "/app/script.py"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - all
+        volumeMounts:
+        - name: script-volume
+          mountPath: /app
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        
+      volumes:
+      - name: script-volume
+        configMap:
+          name: harvester-config
+      
+      nodeSelector:
+        yc.app: iam-k8s-training
+      
+      restartPolicy: Always

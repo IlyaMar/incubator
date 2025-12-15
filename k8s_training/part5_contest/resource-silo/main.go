@@ -47,8 +47,10 @@ func main() {
 			counter1 := atomic.LoadInt64(counters["atreides"])
 			counter2 := atomic.LoadInt64(counters["harkonien"])
 			counter3 := atomic.LoadInt64(counters["corrino"])
-			fmt.Printf("Atriedes: %d, Hakronien: %d, Corrino: %d\n", counter1, counter2, counter3)
-			time.Sleep(1 * time.Second)
+			counter4 := atomic.LoadInt64(counters["freeman"])
+			counter5 := atomic.LoadInt64(counters["space_guild"])
+			fmt.Printf("Atriedes: %d,	Hakronien: %d,	Corrino: %d,	Freeman: %d,	Space Guild: %d\n", counter1, counter2, counter3, counter4, counter5)
+			time.Sleep(5 * time.Second)
 		}
 	}()
 

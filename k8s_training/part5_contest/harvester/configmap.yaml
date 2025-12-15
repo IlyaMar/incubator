@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: harvester-config
+data:
+  script.py: |
+    #!/usr/bin/env python3
+    
+    import time
+    import socket
+    
+    def main():
+        hostname = socket.gethostname()
+        print(f"Hello from Kubernetes! Running on node: {hostname}")
+        for i in range(1,100):
+          print("test message")
+          time.sleep(1)
+        
+        
+        time.sleep(1000)
+    
+    if __name__ == "__main__":
+        main()

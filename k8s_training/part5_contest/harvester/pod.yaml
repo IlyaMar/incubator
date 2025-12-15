@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: harvester-team1
+  labels:
+    app: harvester-team1
+spec:
+  securityContext:
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    capabilities:
+      drop:
+        - all
+
+  containers:
+  - name: python-container
+    image: cr.cloud-preprod.yandex.net/crtqchh33vmh7gjrr5uq/python:3.9-slim
+    command: ["python", "/app/script.py"]
+    volumeMounts:
+    - name: script-volume
+      mountPath: /app
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+  volumes:
+  - name: script-volume
+    configMap:
+      name: harvester-config
+  
+  # nodeSelector:
+  #   yc.app: iam-k8s-training
+  
