@@ -24,3 +24,17 @@ copy_image_to_repo cr.cloud-preprod.yandex.net/crtqchh33vmh7gjrr5uq/python:3.8-s
 
 kubectl exec $(kubectl get pod -l team=atreides --output=jsonpath={.items..metadata.name}) -- curl -X PUT -v 'http://resource-silo:8080/deliver?clan=atreides'
 
+# custom image
+dockerfile:
+```
+...
+# Use the non-root user with numeric ID
+USER 1000:1000
+```
+
+docker build . -t cr.cloud-preprod.yandex.net/crtqchh33vmh7gjrr5uq/your_image:1.0
+
+```
+yc config profile activate preprod
+docker push cr.cloud-preprod.yandex.net/crtqchh33vmh7gjrr5uq/your_image:1.0
+```

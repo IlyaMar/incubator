@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.23 AS builder
+FROM --platform=linux/amd64 golang:1.21 AS builder
 
 # Set working directory
 WORKDIR /app
@@ -9,7 +9,7 @@ COPY main.go .
 COPY go.mod ./
 
 # Build the application with static linking
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o resource-silo .
+RUN CGO_ENABLED=0 go build -a -installsuffix cgo -o resource-silo .
 
 # Final stage
 FROM --platform=linux/amd64 alpine:3.18
