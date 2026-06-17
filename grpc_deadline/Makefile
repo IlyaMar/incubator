@@ -30,3 +30,6 @@ blackhole-off:
 
 blackhole-status:
 	sudo ./scripts/net-blackhole.sh status
+
+
+#  go build -o bin/client ./client 

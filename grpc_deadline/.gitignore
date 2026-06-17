@@ -1,0 +1,23 @@
+# Build output
+bin/
+
+# Go
+*.exe
+*.exe~
+*.test
+*.out
+coverage.*
+vendor/
+
+# macOS
+.DS_Store
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*~
+
+# Local / temp
+*.log
+.tmp/

@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 )
 
@@ -30,12 +31,23 @@ func main() {
 	addr := flag.String("addr", "localhost:50051", "gRPC server address")
 	delay := flag.Duration("delay", defaultDelay, "delay between requests")
 	name := flag.String("name", "client", "name sent in SayHello request")
-	deadline := flag.Duration("deadline", 0, "per-request deadline (0 disables)")
+	deadline := flag.Duration("deadline", 0,
+		"total deadline for one loop iteration including all retry attempts (0 disables)")
+	attemptTimeout := flag.Duration("attempt-timeout", 0,
+		"deadline for a single SayHello attempt; each retry gets a fresh timeout (0 disables)")
+	keepaliveTime := flag.Duration("keepalive-time", 10*time.Second, "gRPC keepalive ping period (0 disables)")
+	keepaliveTimeout := flag.Duration("keepalive-timeout", 3*time.Second, "gRPC keepalive ping ack timeout")
+	keepalivePermitWithoutStream := flag.Bool("keepalive-permit-without-stream", true,
+		"send keepalive pings when there are no active RPCs")
+	retryMaxAttempts := flag.Int("retry-max-attempts", 3,
+		"max SayHello attempts per loop iteration (retries on DeadlineExceeded)")
+	serviceConfigPath := flag.String("service-config", "config/grpc_service_config.json",
+		"path to gRPC service config JSON for built-in retries (empty disables)")
 	flag.Parse()
 
 	var localTCPPort atomic.Int32
 
-	conn, err := grpc.NewClient(*addr,
+	dialOpts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(func(ctx context.Context, address string) (net.Conn, error) {
 			var d net.Dialer
@@ -48,7 +60,35 @@ func main() {
 			}
 			return c, nil
 		}),
-	)
+	}
+	if *keepaliveTime > 0 {
+		dialOpts = append(dialOpts, grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:                *keepaliveTime,
+			Timeout:             *keepaliveTimeout,
+			PermitWithoutStream: *keepalivePermitWithoutStream,
+		}))
+	}
+	maxAttempts := *retryMaxAttempts
+	if maxAttempts < 1 {
+		maxAttempts = 1
+	}
+	if maxAttempts > 1 || *attemptTimeout > 0 {
+		dialOpts = append(dialOpts, grpc.WithUnaryInterceptor(retryConfig{
+			MaxAttempts:       maxAttempts,
+			PerAttemptTimeout: *attemptTimeout,
+		}.unaryClientInterceptor()))
+	}
+	serviceConfigInfo := "disabled"
+	if *serviceConfigPath != "" {
+		svcCfg, err := loadServiceConfig(*serviceConfigPath)
+		if err != nil {
+			log.Fatalf("service config: %v", err)
+		}
+		dialOpts = append(dialOpts, svcCfg)
+		serviceConfigInfo = *serviceConfigPath
+	}
+
+	conn, err := grpc.NewClient(*addr, dialOpts...)
 	if err != nil {
 		log.Fatalf("dial: %v", err)
 	}
@@ -64,24 +104,36 @@ func main() {
 
 	client := greetv1.NewGreetServiceClient(conn)
 
-	log.Printf("sending SayHello to %s every %s (local tcp port %d, Ctrl+C to stop)",
-		*addr, *delay, localTCPPort.Load())
+	keepaliveInfo := "disabled"
+	if *keepaliveTime > 0 {
+		keepaliveInfo = fmt.Sprintf("time=%s timeout=%s permit_without_stream=%v",
+			*keepaliveTime, *keepaliveTimeout, *keepalivePermitWithoutStream)
+	}
+	deadlineRetryInfo := fmt.Sprintf("max_attempts=%d attempt_timeout=%s", *retryMaxAttempts, *attemptTimeout)
+	if *retryMaxAttempts <= 1 && *attemptTimeout == 0 {
+		deadlineRetryInfo = "disabled"
+	}
+	deadlineInfo := "disabled"
+	if *deadline > 0 {
+		deadlineInfo = deadline.String()
+	}
+	log.Printf("sending SayHello to %s every %s (local tcp port %d, keepalive %s, grpc retry %s, deadline retry %s, deadline %s, Ctrl+C to stop)",
+		*addr, *delay, localTCPPort.Load(), keepaliveInfo, serviceConfigInfo, deadlineRetryInfo, deadlineInfo)
 
 	for n := 1; ; n++ {
 		if err := ctx.Err(); err != nil {
 			return
 		}
 
-		reqCtx := ctx
-		cancel := func() {}
-		if *deadline > 0 {
-			reqCtx, cancel = context.WithTimeout(ctx, *deadline)
-		}
-
 		log.Printf("#%d sending request (local tcp port %d)", n, localTCPPort.Load())
 		start := time.Now()
+		reqCtx := ctx
+		reqCancel := func() {}
+		if *deadline > 0 {
+			reqCtx, reqCancel = context.WithTimeout(ctx, *deadline)
+		}
 		resp, err := client.SayHello(reqCtx, &greetv1.SayHelloRequest{Name: *name})
-		cancel()
+		reqCancel()
 		elapsed := time.Since(start)
 
 		if err != nil {

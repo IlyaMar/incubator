@@ -1,0 +1,10 @@
+base_url: "https://solomon.cloud.yandex-team.ru/api/v2"
+project_id: "yc.iam.service-cloud"
+cluster: "prod-iam-access-service"
+service: iam-access-service
+method_duration_labels:
+  sensor: grpc_durations
+  host: cluster
+  app: "access-service_server"
+method_label_name:
+  - method
