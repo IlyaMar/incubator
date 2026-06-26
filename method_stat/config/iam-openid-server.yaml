@@ -1,0 +1,4 @@
+cluster: "prod-iam-openid-server"
+service: iam-openid-server
+method_duration_labels:
+  app: "openid-server_server"

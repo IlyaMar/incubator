@@ -32,7 +32,7 @@ func (l labelFlag) Set(s string) error {
 	return nil
 }
 
-type methodRow struct{ p50, p90, p99 float64 }
+type methodRow struct{ rps, p50, p90, p99 float64 }
 
 type fileConfig struct {
 	BaseURL              string            `yaml:"base_url"`
@@ -40,6 +40,7 @@ type fileConfig struct {
 	Cluster              string            `yaml:"cluster"`
 	Service              string            `yaml:"service"`
 	MethodDurationLabels map[string]string `yaml:"method_duration_labels"`
+	MethodFailrateLabels map[string]string `yaml:"method_failrate_labels"`
 	MethodLabelName      []string          `yaml:"method_label_name"`
 	TimeFrom             string            `yaml:"time_from"`
 	TimeTo               string            `yaml:"time_to"`
@@ -52,7 +53,8 @@ func main() {
 		service   = flag.String("service", "", "service label value")
 		tokenPath = flag.String("token-file", "~/.iam_token", "path to IAM token")
 		baseURL   = flag.String("base-url", "", "Monium base URL (overrides config; default "+monium.DefaultBaseURL+")")
-		configP   = flag.String("config", "", "optional YAML config")
+		commonP   = flag.String("common-config", "", "common YAML config (deep-merged before --config; auto-discovered as common.yaml next to --config if unset)")
+		configP   = flag.String("config", "", "per-service YAML config (overrides common; lists appended)")
 		logFile   = flag.String("log-file", "./logs/discover.log", "log file path")
 		alsoOut   = flag.Bool("stdout", false, "also mirror log to stdout")
 		debug     = flag.Bool("debug", false, "log request URLs and raw response bodies")
@@ -63,18 +65,15 @@ func main() {
 	flag.Var(cliLabels, "label", "additional label selector key=value (repeatable)")
 	flag.Parse()
 
-	cfg := fileConfig{MethodDurationLabels: map[string]string{}}
-	if *configP != "" {
-		b, err := os.ReadFile(*configP)
-		if err != nil {
-			die("read config: %v", err)
-		}
-		if err := yaml.Unmarshal(b, &cfg); err != nil {
-			die("parse config: %v", err)
-		}
-		if cfg.MethodDurationLabels == nil {
-			cfg.MethodDurationLabels = map[string]string{}
-		}
+	cfg, err := loadConfig(*commonP, *configP)
+	if err != nil {
+		die("%v", err)
+	}
+	if cfg.MethodDurationLabels == nil {
+		cfg.MethodDurationLabels = map[string]string{}
+	}
+	if cfg.MethodFailrateLabels == nil {
+		cfg.MethodFailrateLabels = map[string]string{}
 	}
 	if *baseURL != "" {
 		cfg.BaseURL = *baseURL
@@ -102,9 +101,11 @@ func main() {
 	}
 	if cfg.Cluster != "" {
 		cfg.MethodDurationLabels["cluster"] = cfg.Cluster
+		cfg.MethodFailrateLabels["cluster"] = cfg.Cluster
 	}
 	if cfg.Service != "" {
 		cfg.MethodDurationLabels["service"] = cfg.Service
+		cfg.MethodFailrateLabels["service"] = cfg.Service
 	}
 	if cfg.ProjectID == "" {
 		die("project id is required (--project or config)")
@@ -162,7 +163,31 @@ func main() {
 		"from", from, "to", to,
 	)
 	results := make(map[string]*methodRow, len(methods))
+	ensureRow := func(m string) *methodRow {
+		r, ok := results[m]
+		if !ok {
+			r = &methodRow{rps: math.NaN(), p50: math.NaN(), p90: math.NaN(), p99: math.NaN()}
+			results[m] = r
+		}
+		return r
+	}
 	for _, m := range methods {
+		rpsProgram := monium.RPSProgram(cfg.MethodFailrateLabels, m)
+		rpsResp, err := client.ReadData(ctx, monium.ReadDataRequest{
+			ProjectID: cfg.ProjectID,
+			Program:   rpsProgram,
+			From:      from,
+			To:        to,
+		})
+		if err != nil {
+			logger.Error("read rps", "method", m, "err", err.Error())
+		} else if avg, err := monium.AverageValue(rpsResp.Raw); err != nil {
+			logger.Error("parse rps", "method", m, "err", err.Error())
+		} else {
+			logger.Info("method rps", "method", m, "value", avg)
+			ensureRow(m).rps = avg
+		}
+
 		for _, p := range percentiles {
 			program := monium.HistogramPercentileProgram(cfg.MethodDurationLabels, m, p)
 			resp, err := client.ReadData(ctx, monium.ReadDataRequest{
@@ -181,11 +206,7 @@ func main() {
 				continue
 			}
 			logger.Info("method data", "method", m, "percentile", p, "value", v)
-			r, ok := results[m]
-			if !ok {
-				r = &methodRow{p50: math.NaN(), p90: math.NaN(), p99: math.NaN()}
-				results[m] = r
-			}
+			r := ensureRow(m)
 			switch p {
 			case 50:
 				r.p50 = v
@@ -225,6 +246,7 @@ func writeCSV(service string, methods []string, results map[string]*methodRow) (
 		if err := w.Write([]string{
 			service,
 			m,
+			fmtFloat(r.rps),
 			fmtFloat(r.p50),
 			fmtFloat(r.p90),
 			fmtFloat(r.p99),
@@ -252,6 +274,76 @@ func resolveTimeRange(from, to string) (string, string) {
 		from = now.AddDate(0, -1, 0).Format(time.RFC3339)
 	}
 	return from, to
+}
+
+func loadConfig(commonPath, servicePath string) (fileConfig, error) {
+	if commonPath == "" && servicePath != "" {
+		candidate := filepath.Join(filepath.Dir(servicePath), "common.yaml")
+		if _, err := os.Stat(candidate); err == nil {
+			commonPath = candidate
+		}
+	}
+	merged := map[string]any{}
+	if commonPath != "" {
+		m, err := readYAMLMap(commonPath)
+		if err != nil {
+			return fileConfig{}, fmt.Errorf("read common config %s: %w", commonPath, err)
+		}
+		deepMerge(merged, m)
+	}
+	if servicePath != "" {
+		m, err := readYAMLMap(servicePath)
+		if err != nil {
+			return fileConfig{}, fmt.Errorf("read config %s: %w", servicePath, err)
+		}
+		deepMerge(merged, m)
+	}
+	var cfg fileConfig
+	if len(merged) == 0 {
+		return cfg, nil
+	}
+	b, err := yaml.Marshal(merged)
+	if err != nil {
+		return cfg, fmt.Errorf("marshal merged config: %w", err)
+	}
+	if err := yaml.Unmarshal(b, &cfg); err != nil {
+		return cfg, fmt.Errorf("decode merged config: %w", err)
+	}
+	return cfg, nil
+}
+
+func readYAMLMap(path string) (map[string]any, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	m := map[string]any{}
+	if err := yaml.Unmarshal(b, &m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// deepMerge merges src into dst. Maps are merged recursively; slices are
+// appended (dst first, then src); other values are overwritten by src.
+func deepMerge(dst, src map[string]any) {
+	for k, sv := range src {
+		if dv, ok := dst[k]; ok {
+			dm, dmOk := dv.(map[string]any)
+			sm, smOk := sv.(map[string]any)
+			if dmOk && smOk {
+				deepMerge(dm, sm)
+				continue
+			}
+			dl, dlOk := dv.([]any)
+			sl, slOk := sv.([]any)
+			if dlOk && slOk {
+				dst[k] = append(dl, sl...)
+				continue
+			}
+		}
+		dst[k] = sv
+	}
 }
 
 func die(format string, a ...any) {

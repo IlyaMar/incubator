@@ -69,22 +69,44 @@ func (c *Client) ReadData(ctx context.Context, req ReadDataRequest) (DataRespons
 	return DataResponse{Raw: respBody}, nil
 }
 
-// LastValue extracts the last element of response.timeseries.values.
-// Returns NaN if the array is empty or the element is null/"NaN".
-func LastValue(raw []byte) (float64, error) {
-	var p struct {
-		Timeseries struct {
+// extractValues returns the values array from either response shape:
+//   - {"timeseries": {"values": [...]}}             (single-series result)
+//   - {"vector": [{"timeseries": {"values": [...]}}]}  (multi-series result)
+func extractValues(raw []byte) ([]json.RawMessage, error) {
+	var top struct {
+		Timeseries *struct {
 			Values []json.RawMessage `json:"values"`
 		} `json:"timeseries"`
+		Vector []struct {
+			Timeseries struct {
+				Values []json.RawMessage `json:"values"`
+			} `json:"timeseries"`
+		} `json:"vector"`
 	}
-	if err := json.Unmarshal(raw, &p); err != nil {
-		return 0, fmt.Errorf("decode timeseries: %w", err)
+	if err := json.Unmarshal(raw, &top); err != nil {
+		return nil, fmt.Errorf("decode timeseries: %w", err)
 	}
-	n := len(p.Timeseries.Values)
+	if top.Timeseries != nil {
+		return top.Timeseries.Values, nil
+	}
+	if len(top.Vector) > 0 {
+		return top.Vector[0].Timeseries.Values, nil
+	}
+	return nil, nil
+}
+
+// LastValue returns the last element of the response's values array.
+// Returns NaN if the array is empty or the element is null/"NaN".
+func LastValue(raw []byte) (float64, error) {
+	vals, err := extractValues(raw)
+	if err != nil {
+		return 0, err
+	}
+	n := len(vals)
 	if n == 0 {
 		return math.NaN(), nil
 	}
-	last := p.Timeseries.Values[n-1]
+	last := vals[n-1]
 	if string(last) == "null" {
 		return math.NaN(), nil
 	}
