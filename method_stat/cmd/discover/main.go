@@ -32,7 +32,7 @@ func (l labelFlag) Set(s string) error {
 	return nil
 }
 
-type methodRow struct{ rps, p50, p90, p99 float64 }
+type methodRow struct{ rps, failrate, p50, p90, p99 float64 }
 
 type fileConfig struct {
 	BaseURL              string            `yaml:"base_url"`
@@ -166,7 +166,7 @@ func main() {
 	ensureRow := func(m string) *methodRow {
 		r, ok := results[m]
 		if !ok {
-			r = &methodRow{rps: math.NaN(), p50: math.NaN(), p90: math.NaN(), p99: math.NaN()}
+			r = &methodRow{rps: math.NaN(), failrate: math.NaN(), p50: math.NaN(), p90: math.NaN(), p99: math.NaN()}
 			results[m] = r
 		}
 		return r
@@ -188,25 +188,42 @@ func main() {
 			ensureRow(m).rps = avg
 		}
 
+		frProgram := monium.FailrateProgram(cfg.MethodFailrateLabels, m, monium.DefaultFailrateStatusExclude)
+		frResp, err := client.ReadData(ctx, monium.ReadDataRequest{
+			ProjectID: cfg.ProjectID,
+			Program:   frProgram,
+			From:      from,
+			To:        to,
+		})
+		if err != nil {
+			logger.Error("read failrate", "method", m, "err", err.Error())
+		} else if v, err := monium.ScalarValue(frResp.Raw); err != nil {
+			logger.Error("parse failrate", "method", m, "err", err.Error())
+		} else {
+			logger.Info("method failrate", "method", m, "value", v)
+			ensureRow(m).failrate = v
+		}
+
+		program := monium.HistogramPercentileProgram(cfg.MethodDurationLabels, m, percentiles)
+		resp, err := client.ReadData(ctx, monium.ReadDataRequest{
+			ProjectID: cfg.ProjectID,
+			Program:   program,
+			From:      from,
+			To:        to,
+		})
+		if err != nil {
+			logger.Error("read data", "method", m, "err", err.Error())
+			continue
+		}
+		byP, err := monium.LastValuesByPercentile(resp.Raw)
+		if err != nil {
+			logger.Error("parse data", "method", m, "err", err.Error())
+			continue
+		}
+		r := ensureRow(m)
 		for _, p := range percentiles {
-			program := monium.HistogramPercentileProgram(cfg.MethodDurationLabels, m, p)
-			resp, err := client.ReadData(ctx, monium.ReadDataRequest{
-				ProjectID: cfg.ProjectID,
-				Program:   program,
-				From:      from,
-				To:        to,
-			})
-			if err != nil {
-				logger.Error("read data", "method", m, "percentile", p, "err", err.Error())
-				continue
-			}
-			v, err := monium.LastValue(resp.Raw)
-			if err != nil {
-				logger.Error("parse data", "method", m, "percentile", p, "err", err.Error())
-				continue
-			}
+			v := byP[p]
 			logger.Info("method data", "method", m, "percentile", p, "value", v)
-			r := ensureRow(m)
 			switch p {
 			case 50:
 				r.p50 = v
@@ -247,6 +264,7 @@ func writeCSV(service string, methods []string, results map[string]*methodRow) (
 			service,
 			m,
 			fmtFloat(r.rps),
+			fmtFloat(r.failrate),
 			fmtFloat(r.p50),
 			fmtFloat(r.p90),
 			fmtFloat(r.p99),

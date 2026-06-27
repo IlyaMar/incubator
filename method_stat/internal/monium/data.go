@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -69,16 +70,23 @@ func (c *Client) ReadData(ctx context.Context, req ReadDataRequest) (DataRespons
 	return DataResponse{Raw: respBody}, nil
 }
 
-// extractValues returns the values array from either response shape:
-//   - {"timeseries": {"values": [...]}}             (single-series result)
-//   - {"vector": [{"timeseries": {"values": [...]}}]}  (multi-series result)
-func extractValues(raw []byte) ([]json.RawMessage, error) {
+type vectorEntry struct {
+	Alias  string
+	Values []json.RawMessage
+}
+
+// extractVector returns every timeseries in the response, handling both shapes:
+//   - {"timeseries": {...}}            (single-series result)
+//   - {"vector": [{"timeseries": ...}]} (multi-series result)
+func extractVector(raw []byte) ([]vectorEntry, error) {
 	var top struct {
 		Timeseries *struct {
+			Alias  string            `json:"alias"`
 			Values []json.RawMessage `json:"values"`
 		} `json:"timeseries"`
 		Vector []struct {
 			Timeseries struct {
+				Alias  string            `json:"alias"`
 				Values []json.RawMessage `json:"values"`
 			} `json:"timeseries"`
 		} `json:"vector"`
@@ -87,12 +95,24 @@ func extractValues(raw []byte) ([]json.RawMessage, error) {
 		return nil, fmt.Errorf("decode timeseries: %w", err)
 	}
 	if top.Timeseries != nil {
-		return top.Timeseries.Values, nil
+		return []vectorEntry{{Alias: top.Timeseries.Alias, Values: top.Timeseries.Values}}, nil
 	}
-	if len(top.Vector) > 0 {
-		return top.Vector[0].Timeseries.Values, nil
+	out := make([]vectorEntry, 0, len(top.Vector))
+	for _, v := range top.Vector {
+		out = append(out, vectorEntry{Alias: v.Timeseries.Alias, Values: v.Timeseries.Values})
 	}
-	return nil, nil
+	return out, nil
+}
+
+func extractValues(raw []byte) ([]json.RawMessage, error) {
+	entries, err := extractVector(raw)
+	if err != nil {
+		return nil, err
+	}
+	if len(entries) == 0 {
+		return nil, nil
+	}
+	return entries[0].Values, nil
 }
 
 // LastValue returns the last element of the response's values array.
@@ -123,12 +143,70 @@ func LastValue(raw []byte) (float64, error) {
 	return 0, fmt.Errorf("unrecognized value: %s", string(last))
 }
 
-// HistogramPercentileProgram returns histogram_percentile(<p>, integral({<selectors>, method="<method>"})).
-func HistogramPercentileProgram(selectors map[string]string, method string, percentile int) string {
+// HistogramPercentileProgram returns
+// histogram_percentile([p1, p2, ...], integral({<selectors>, method="<method>"})).
+// Monium returns one timeseries per percentile in the response vector.
+func HistogramPercentileProgram(selectors map[string]string, method string, percentiles []int) string {
 	merged := make(map[string]string, len(selectors)+1)
 	for k, v := range selectors {
 		merged[k] = v
 	}
 	merged["method"] = method
-	return fmt.Sprintf("histogram_percentile(%d, integral(%s))", percentile, buildSelectors(merged))
+	parts := make([]string, len(percentiles))
+	for i, p := range percentiles {
+		parts[i] = strconv.Itoa(p)
+	}
+	return fmt.Sprintf("histogram_percentile([%s], integral(%s))",
+		strings.Join(parts, ", "), buildSelectors(merged))
+}
+
+// LastValuesByPercentile parses a histogram_percentile vector response and
+// returns the last value of each percentile series keyed by percentile.
+// Aliases are expected to look like "p50.0", "p90.0", "p99.0".
+func LastValuesByPercentile(raw []byte) (map[int]float64, error) {
+	entries, err := extractVector(raw)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int]float64, len(entries))
+	for _, e := range entries {
+		p, ok := parsePercentileAlias(e.Alias)
+		if !ok {
+			continue
+		}
+		out[p] = lastNumeric(e.Values)
+	}
+	return out, nil
+}
+
+func parsePercentileAlias(alias string) (int, bool) {
+	s := strings.TrimPrefix(strings.TrimPrefix(alias, "P"), "p")
+	if i := strings.Index(s, "."); i >= 0 {
+		s = s[:i]
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, false
+	}
+	return n, true
+}
+
+func lastNumeric(values []json.RawMessage) float64 {
+	n := len(values)
+	if n == 0 {
+		return math.NaN()
+	}
+	last := values[n-1]
+	if string(last) == "null" {
+		return math.NaN()
+	}
+	var f float64
+	if err := json.Unmarshal(last, &f); err == nil {
+		return f
+	}
+	var s string
+	if err := json.Unmarshal(last, &s); err == nil && s == "NaN" {
+		return math.NaN()
+	}
+	return math.NaN()
 }

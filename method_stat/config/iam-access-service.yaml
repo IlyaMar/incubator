@@ -2,3 +2,6 @@ cluster: "prod-iam-access-service"
 service: iam-access-service
 method_duration_labels:
   app: "access-service_server"
+
+method_failrate_labels:
+  app: "access-service_server"

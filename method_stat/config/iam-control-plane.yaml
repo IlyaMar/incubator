@@ -2,3 +2,6 @@ cluster: "prod-iam-control-plane"
 service: iam-control-plane
 method_duration_labels:
   app: "iam-control-plane_server"
+
+method_failrate_labels:
+  app: "iam-control-plane_server"

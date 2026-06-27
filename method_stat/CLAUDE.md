@@ -2,6 +2,7 @@
 
 CLI that pulls per-gRPC-method latency and request-rate statistics from
 Monium / Yandex Solomon and writes them to a CSV.
+Monium API schema: https://solomon.yandex-team.ru/webjars/swagger-ui/index.html
 
 ## What it does
 
@@ -10,6 +11,8 @@ For a given Solomon project + cluster + service:
 1. Discover the set of `method` label values by calling
    `POST /api/v2/projects/{projectId}/sensors/labels` with selectors built
    from `method_duration_labels`.
+
+
 2. For each discovered method, run two SeL queries against
    `POST /api/v2/projects/{projectId}/sensors/data`:
    - `series_sum({...method_failrate_labels, method="<m>"})` → averaged over
@@ -18,6 +21,13 @@ For a given Solomon project + cluster + service:
      for `p ∈ {50, 90, 99}` → last value of the series produces `p50`/`p90`/`p99`.
 3. Write `output/<service>_methods.csv` with columns
    `service, method, rps, p50, p90, p99` (no header).
+
+## Query metrics data
+Always add project_id, cluster and service labels to query. This 3 labels identify metrics storage. Get values from config, e g:
+```
+{project = "yc.iam.service-cloud", cluster = "prod-iam-control-plane", service = "iam-control-plane", ...}
+```
+
 
 ## Layout
 
@@ -58,6 +68,10 @@ Time window: `time_from` / `time_to` in config or `--from` / `--to` flags
 
 IAM token read from `~/.iam_token` (path overridable via `--token-file`),
 sent as `Authorization: Bearer <token>`.
+Refresh iam token with:
+```
+ycp --profile=prod iam create-token > ~/.iam_token
+```
 
 ## Run
 
