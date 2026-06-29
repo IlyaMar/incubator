@@ -115,6 +115,32 @@ func extractValues(raw []byte) ([]json.RawMessage, error) {
 	return entries[0].Values, nil
 }
 
+// ScalarValue extracts the top-level "scalar" field from a Solomon
+// /sensors/data response. Returns NaN for null/"NaN"/missing.
+func ScalarValue(raw []byte) (float64, error) {
+	var top struct {
+		Scalar json.RawMessage `json:"scalar"`
+	}
+	if err := json.Unmarshal(raw, &top); err != nil {
+		return 0, fmt.Errorf("decode scalar: %w", err)
+	}
+	if len(top.Scalar) == 0 || string(top.Scalar) == "null" {
+		return math.NaN(), nil
+	}
+	var f float64
+	if err := json.Unmarshal(top.Scalar, &f); err == nil {
+		if math.IsNaN(f) || math.IsInf(f, 0) {
+			return math.NaN(), nil
+		}
+		return f, nil
+	}
+	var s string
+	if err := json.Unmarshal(top.Scalar, &s); err == nil && s == "NaN" {
+		return math.NaN(), nil
+	}
+	return 0, fmt.Errorf("unrecognized scalar: %s", string(top.Scalar))
+}
+
 // LastValue returns the last element of the response's values array.
 // Returns NaN if the array is empty or the element is null/"NaN".
 func LastValue(raw []byte) (float64, error) {

@@ -181,7 +181,7 @@ func main() {
 		})
 		if err != nil {
 			logger.Error("read rps", "method", m, "err", err.Error())
-		} else if avg, err := monium.AverageValue(rpsResp.Raw); err != nil {
+		} else if avg, err := monium.ScalarValue(rpsResp.Raw); err != nil {
 			logger.Error("parse rps", "method", m, "err", err.Error())
 		} else {
 			logger.Info("method rps", "method", m, "value", avg)
@@ -263,11 +263,11 @@ func writeCSV(service string, methods []string, results map[string]*methodRow) (
 		if err := w.Write([]string{
 			service,
 			m,
-			fmtFloat(r.rps),
-			fmtFloat(r.failrate),
-			fmtFloat(r.p50),
-			fmtFloat(r.p90),
-			fmtFloat(r.p99),
+			fmtFloat(r.rps, 3),
+			fmtFloat(r.failrate, 5),
+			fmtFloat(r.p50, 5),
+			fmtFloat(r.p90, 5),
+			fmtFloat(r.p99, 5),
 		}); err != nil {
 			return "", err
 		}
@@ -276,11 +276,11 @@ func writeCSV(service string, methods []string, results map[string]*methodRow) (
 	return path, w.Error()
 }
 
-func fmtFloat(v float64) string {
+func fmtFloat(v float64, decimals int) string {
 	if math.IsNaN(v) || math.IsInf(v, 0) {
 		return ""
 	}
-	return strconv.FormatFloat(v, 'f', -1, 64)
+	return strconv.FormatFloat(v, 'f', decimals, 64)
 }
 
 func resolveTimeRange(from, to string) (string, string) {

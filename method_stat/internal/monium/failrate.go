@@ -1,9 +1,7 @@
 package monium
 
 import (
-	"encoding/json"
 	"fmt"
-	"math"
 	"strings"
 )
 
@@ -36,28 +34,3 @@ func FailrateProgram(selectors map[string]string, method, excludeStatuses string
 	return fmt.Sprintf("integrate(series_sum(%s)) / integrate(series_sum(%s))", numSel, baseSel)
 }
 
-// ScalarValue extracts the top-level "scalar" field from a Solomon
-// /sensors/data response. Returns NaN for null/"NaN"/missing.
-func ScalarValue(raw []byte) (float64, error) {
-	var top struct {
-		Scalar json.RawMessage `json:"scalar"`
-	}
-	if err := json.Unmarshal(raw, &top); err != nil {
-		return 0, fmt.Errorf("decode scalar: %w", err)
-	}
-	if len(top.Scalar) == 0 || string(top.Scalar) == "null" {
-		return math.NaN(), nil
-	}
-	var f float64
-	if err := json.Unmarshal(top.Scalar, &f); err == nil {
-		if math.IsNaN(f) || math.IsInf(f, 0) {
-			return math.NaN(), nil
-		}
-		return f, nil
-	}
-	var s string
-	if err := json.Unmarshal(top.Scalar, &s); err == nil && s == "NaN" {
-		return math.NaN(), nil
-	}
-	return 0, fmt.Errorf("unrecognized scalar: %s", string(top.Scalar))
-}

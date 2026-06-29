@@ -1,1 +1,1 @@
-avg(series_sum({cluster="prod-iam-access-service", service="iam-access-service", sensor="grpc_statuses_total", method="grpc.health.v1.Health/Check"}))
+avg(series_sum({cluster="prod-iam-access-service", service="iam-access-service", sensor="grpc_duration_total", method="grpc.health.v1.Health/Check"}))
