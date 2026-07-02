@@ -1,0 +1,1 @@
+histogram_percentile([50, 90, 99], integral({app="token-service_server", cluster="prod-iam-token-service", host="cluster", method="iam.v1.IamTokenService/Create", sensor="grpc_durations|servlet_durations", service="iam-token-service"}))

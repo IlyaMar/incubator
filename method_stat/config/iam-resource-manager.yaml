@@ -1,0 +1,7 @@
+cluster: "prod-iam-resource-manager"
+service: iam-resource-manager
+method_duration_labels:
+  app: "rm-control-plane_server"
+
+method_failrate_labels:
+  app: "rm-control-plane_server"

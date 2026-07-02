@@ -1,0 +1,7 @@
+cluster: "prod-iam-mfa-service"
+service: iam-mfa-service
+method_duration_labels:
+  app: "mfa-service_server"
+
+method_failrate_labels:
+  app: "mfa-service_server"

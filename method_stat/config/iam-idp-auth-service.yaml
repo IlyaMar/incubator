@@ -1,0 +1,7 @@
+cluster: "prod-iam-idp-auth-service"
+service: iam-idp-auth-service
+method_duration_labels:
+  app: "iam-idp-auth-service_server"
+
+method_failrate_labels:
+  app: "iam-idp-auth-service_server"

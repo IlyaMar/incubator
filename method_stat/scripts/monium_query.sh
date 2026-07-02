@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # monium_query.sh — POST a Monium /sensors/data query, reading the SeL
-# program text from stdin. Time window defaults to [now - 1h, now] UTC.
+# program text from stdin. Time window defaults to [now - 30d, now] UTC.
 # Prints the JSON response to stdout.
 #
 # Usage:
@@ -29,7 +29,7 @@ fi
 read -r FROM_TS TO_TS < <(python3 -c '
 from datetime import datetime, timezone, timedelta
 now = datetime.now(timezone.utc).replace(microsecond=0)
-print((now - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ"), now.strftime("%Y-%m-%dT%H:%M:%SZ"))
+print((now - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ"), now.strftime("%Y-%m-%dT%H:%M:%SZ"))
 ')
 
 body=$(PROGRAM="$program" FROM="$FROM_TS" TO="$TO_TS" python3 -c '

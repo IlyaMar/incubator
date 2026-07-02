@@ -1,0 +1,7 @@
+cluster: "prod-iam-quota-manager"
+service: iam-quota-manager
+method_duration_labels:
+  app: "quota-manager_server"
+
+method_failrate_labels:
+  app: "quota-manager_server"

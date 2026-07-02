@@ -1,0 +1,7 @@
+cluster: "prod-iam-token-service"
+service: iam-token-service
+method_duration_labels:
+  app: "token-service_server"
+
+method_failrate_labels:
+  app: "token-service_server"

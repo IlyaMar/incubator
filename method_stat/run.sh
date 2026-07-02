@@ -10,7 +10,7 @@ set -euo pipefail
 
 UNIFIED="output/methods.csv"
 {
-  echo "service,method,rps,failrate,p90,p99,p999"
+  echo "service,method,rps,failrate,p50,p90,p99"
   for f in output/*_methods.csv; do
     cat "$f"
   done

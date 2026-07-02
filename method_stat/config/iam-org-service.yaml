@@ -1,0 +1,7 @@
+cluster: "prod-iam-org-service"
+service: iam-org-service
+method_duration_labels:
+  app: "org-service_server"
+
+method_failrate_labels:
+  app: "org-service_server"

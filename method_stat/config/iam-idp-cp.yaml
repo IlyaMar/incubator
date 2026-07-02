@@ -1,0 +1,7 @@
+cluster: "prod-iam-idp-cp"
+service: iam-idp-cp
+method_duration_labels:
+  app: "iam-idp-cp_server"
+
+method_failrate_labels:
+  app: "iam-idp-cp_server"
